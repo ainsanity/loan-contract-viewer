@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Loan Contract Lookup</title>
+
+<style>
+body {
+  font-family: "Segoe UI", Arial, sans-serif;
+  background: #f4f6f9;
+  padding: 20px;
+}
+
+h2 { margin-bottom: 10px; }
+
+input {
+  padding: 10px;
+  width: 260px;
+  font-size: 14px;
+}
+
+button {
+  padding: 10px 18px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.header-box {
+  background: #ffffff;
+  padding: 15px;
+  border-radius: 8px;
+  margin-bottom: 15px;
+}
+
+.card {
+  background: #ffffff;
+  padding: 16px;
+  border-radius: 8px;
+  margin-top: 15px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.kpi {
+  background: #eef3ff;
+  padding: 12px;
+  border-radius: 6px;
+}
+
+.kpi span {
+  display: block;
+  font-size: 12px;
+  color: #555;
+}
+
+.kpi strong {
+  font-size: 16px;
+}
+
+.badge {
+  padding: 4px 12px;
+  border-radius: 14px;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.badge-gnpa {
+  background: #ffe0e0;
+  color: #b30000;
+}
+
+.badge-non-gnpa {
+  background: #e0f7e9;
+  color: #0b6b2d;
+}
+
+.total-box {
+  background: #fff7e6;
+  border: 1px solid #ffd27f;
+  padding: 15px;
+  border-radius: 8px;
+  width: 380px;
+  margin-top: 15px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 12px;
+  font-size: 13px;
+}
+
+th, td {
+  border: 1px solid #ddd;
+  padding: 8px;
+  text-align: right;
+}
+
+th {
+  background: #f0f3f8;
+  font-weight: 600;
+}
+
+td:first-child, th:first-child {
+  text-align: left;
+}
+
+.error {
+  color: red;
+  font-weight: bold;
+}
+</style>
+</head>
+
+<body>
+
+<h2>Loan Contract Search</h2>
+
+<div class="header-box">
+  <input id="contractInput" placeholder="Enter Contract No">
+  <button onclick="searchContract()">Search</button>
+</div>
+
+<div id="result"></div>
+
+<script>
+let data = [];
+
+fetch("data.json")
+  .then(res => res.json())
+  .then(json => data = json);
+
+function searchContract() {
+  const contractNo = document.getElementById("contractInput").value.trim();
+  const result = document.getElementById("result");
+  result.innerHTML = "";
+
+  if (!contractNo) {
+    result.innerHTML = "<p class='error'>Please enter Contract No</p>";
+    return;
+  }
+
+  const found = data.find(
+    x => String(x.contract_no).trim() === String(contractNo).trim()
+  );
+
+  if (!found) {
+    result.innerHTML = "<p class='error'>Contract not found</p>";
+    return;
+  }
+
+  const customerContracts = data.filter(
+    x => String(x.customer_id).trim() === String(found.customer_id).trim()
+  );
+
+  const totalContracts = customerContracts.length;
+
+  // 🔹 GNPA text preserved exactly as in JSON
+  const gnpaText = customerContracts[0].gnpa_flag;
+  const isGNPA = gnpaText.toLowerCase().includes("gnpa") &&
+                 !gnpaText.toLowerCase().includes("non");
+
+  /* ========== CUSTOMER SUMMARY ========== */
+  result.innerHTML += `
+    <div class="card">
+      <h3>Customer Summary</h3>
+
+      <div class="summary-grid">
+        <div class="kpi">
+          <span>Customer Name</span>
+          <strong>${found.customer_name}</strong>
+        </div>
+
+        <div class="kpi">
+          <span>Customer ID</span>
+          <strong>${found.customer_id}</strong>
+        </div>
+
+        <div class="kpi">
+          <span>Total Linked Contracts</span>
+          <strong>${totalContracts}</strong>
+        </div>
+
+        <div class="kpi">
+          <span>Region</span>
+          <strong>${found.region}</strong>
+        </div>
+
+        <div class="kpi">
+          <span>State</span>
+          <strong>${found.state}</strong>
+        </div>
+
+        <div class="kpi">
+          <span>GNPA Status</span>
+          <span class="badge ${isGNPA ? "badge-gnpa" : "badge-non-gnpa"}">
+            ${gnpaText}
+          </span>
+        </div>
+      </div>
+    </div>
+  `;
+
+  /* ========== TOTAL OD ========== */
+  let totalPrincipal = 0;
+  let totalInterest = 0;
+
+  customerContracts.forEach(x => {
+    totalPrincipal += Number(x.od_principal) || 0;
+    totalInterest += Number(x.od_interest) || 0;
+  });
+
+  result.innerHTML += `
+    <div class="total-box">
+      <h3>Total OD Summary</h3>
+      <p><b>OD Principal:</b> ₹ ${totalPrincipal.toLocaleString()}</p>
+      <p><b>OD Interest:</b> ₹ ${totalInterest.toLocaleString()}</p>
+      <hr>
+      <p><b>Total OD:</b> ₹ ${(totalPrincipal + totalInterest).toLocaleString()}</p>
+    </div>
+  `;
+
+  /* ========== CONTRACT TABLE ========== */
+  let table = `
+    <div class="card">
+    <h3>Contract-wise Details</h3>
+    <table>
+      <tr>
+        <th>Contract No</th>
+        <th>Finance Amount</th>
+        <th>Seasoning</th>
+        <th>OD Principal</th>
+        <th>OD Interest</th>
+        <th>Contract Value</th>
+        <th>Collectable</th>
+        <th>Contract Balance Jan-26</th>
+        <th>Branch</th>
+        <th>GNPA Flag</th>
+      </tr>
+  `;
+
+  customerContracts.forEach(x => {
+    table += `
+      <tr>
+        <td>${x.contract_no}</td>
+        <td>${Number(x.finance_amount).toLocaleString()}</td>
+        <td>${x.seasoning}</td>
+        <td>${Number(x.od_principal).toLocaleString()}</td>
+        <td>${Number(x.od_interest).toLocaleString()}</td>
+        <td>${Number(x.contract_value).toLocaleString()}</td>
+        <td>${Number(x.collectable).toLocaleString()}</td>
+        <td>${Number(x.contract_balance_jan26).toLocaleString()}</td>
+        <td>${x.branch}</td>
+        <td>${x.gnpa_flag}</td>
+      </tr>
+    `;
+  });
+
+  table += "</table></div>";
+  result.innerHTML += table;
+}
+</script>
+
+</body>
+</html>
